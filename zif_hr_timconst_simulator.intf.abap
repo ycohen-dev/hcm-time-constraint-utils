@@ -16,17 +16,17 @@ INTERFACE zif_hr_timconst_simulator
 
   METHODS check_collision_insert
     IMPORTING is_record                  TYPE any
-    RETURNING VALUE(ro_colision_results) TYPE REF TO zif_hr_insert_colision_rslts.
+    RETURNING VALUE(ro_colision_results) TYPE REF TO zif_hr_modify_colision_rslts.
 
   METHODS check_collision_delete
     IMPORTING is_record                  TYPE any
-    RETURNING VALUE(ro_colision_results) TYPE REF TO zif_hr_delete_colision_rslts.
+    RETURNING VALUE(ro_colision_results) TYPE REF TO zif_hr_modify_colision_rslts.
 
   METHODS check_collision_modify
     IMPORTING is_record                  TYPE any
               iv_new_begda               TYPE begda
               iv_new_endda               TYPE endda
-    RETURNING VALUE(ro_colision_results) TYPE REF TO zif_hr_insert_colision_rslts.
+    RETURNING VALUE(ro_colision_results) TYPE REF TO zif_hr_modify_colision_rslts.
 
   METHODS insert_record
     IMPORTING is_record TYPE any
