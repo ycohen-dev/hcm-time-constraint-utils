@@ -1,9 +1,57 @@
 *"* use this source file for your ABAP unit test classes
+CLASS lcl_assert_ref_utilities DEFINITION.
+  PUBLIC SECTION.
+  METHODS: assert_structure_ref_equal
+    IMPORTING irs_act_record TYPE REF TO data
+              is_exp_record  TYPE any
+    RAISING   cx_static_check,
+    assert_ref_table_contains
+      IMPORTING irt_act_table TYPE REF TO data
+                is_exp_record TYPE any
+      RAISING   cx_static_check,
+    assert_ref_table_lines
+      IMPORTING irt_act_table TYPE REF TO data
+                iv_exp_lines  TYPE i
+      RAISING   cx_static_check.
+ENDCLASS.
+
+CLASS lcl_assert_ref_utilities IMPLEMENTATION.
+  METHOD assert_structure_ref_equal.
+
+    FIELD-SYMBOLS: <ls_act_record> TYPE any.
+
+    ASSIGN irs_act_record->* TO <ls_act_record>.
+
+    cl_abap_unit_assert=>assert_equals( exp = is_exp_record act = <ls_act_record> ).
+
+  ENDMETHOD.
+
+  METHOD assert_ref_table_contains.
+
+    FIELD-SYMBOLS: <lt_act_table> TYPE any TABLE.
+
+    ASSIGN irt_act_table->* TO <lt_act_table>.
+
+    cl_abap_unit_assert=>assert_table_contains( line = is_exp_record table = <lt_act_table> ).
+
+  ENDMETHOD.
+
+  METHOD assert_ref_table_lines.
+
+    FIELD-SYMBOLS: <lt_act_table> TYPE any table.
+
+    ASSIGN irt_act_table->* TO <lt_act_table>.
+
+    cl_abap_unit_assert=>assert_equals( exp = iv_exp_lines act = lines( <lt_act_table> ) ).
+
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS ltcl_timconst_simulator DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
 
-  PRIVATE SECTION.
+  PUBLIC SECTION.
 
     TYPES: BEGIN OF ts_pernr_dates,
              pernr  TYPE numc07,
@@ -14,7 +62,10 @@ CLASS ltcl_timconst_simulator DEFINITION FINAL FOR TESTING
 
            tt_pernr_dates TYPE STANDARD TABLE OF ts_pernr_dates WITH DEFAULT KEY.
 
+  PRIVATE SECTION.
+
     DATA: mo_simulator        TYPE REF TO zif_hr_timconst_simulator,
+          mo_ref_assert_util  TYPE REF TO lcl_assert_ref_utilities,
           mv_lines_before_ops TYPE i.
 
     METHODS:
@@ -25,17 +76,11 @@ CLASS ltcl_timconst_simulator DEFINITION FINAL FOR TESTING
                   override             TYPE boole_d
                   postpond             TYPE boole_d
         RAISING   cx_static_check,
-      assert_structure_ref_equal
-        IMPORTING irs_act_record TYPE REF TO data
-                  is_exp_record  TYPE ts_pernr_dates
-        RAISING   cx_static_check,
-      assert_ref_table_contains
-        IMPORTING irt_act_table TYPE REF TO data
-                  is_exp_record TYPE ts_pernr_dates,
       ins_nogaps_delimitation FOR TESTING RAISING cx_static_check,
       ins_nogaps_overriden FOR TESTING RAISING cx_static_check,
       ins_nogaps_postpond FOR TESTING RAISING cx_static_check,
-      ins_nogaps_diff_keyfield FOR TESTING RAISING cx_static_check.
+      ins_nogaps_diff_keyfield FOR TESTING RAISING cx_static_check,
+      del_nogaps_extended FOR TESTING RAISING cx_static_check.
 ENDCLASS.
 
 
@@ -70,6 +115,8 @@ CLASS ltcl_timconst_simulator IMPLEMENTATION.
         iv_allow_gaps              = abap_false
     ).
 
+    me->mo_ref_assert_util = NEW #(  ).
+
   ENDMETHOD.
 
   METHOD ins_nogaps_delimitation.
@@ -94,151 +141,134 @@ CLASS ltcl_timconst_simulator IMPLEMENTATION.
 
     lrs_delimited_record ?= lo_collision_result->get_delimited_record( ).
 
-    me->assert_structure_ref_equal( irs_act_record = lrs_delimited_record is_exp_record = ls_exp_delim ).
+    mo_ref_assert_util->assert_structure_ref_equal( irs_act_record = lrs_delimited_record is_exp_record = ls_exp_delim ).
 
     mo_simulator->insert_record( is_record = ls_insert_date ).
 
     lrt_resolved_table ?= mo_simulator->get_resolved_table( ).
 
-    me->assert_ref_table_contains( irt_act_table = lrt_resolved_table is_exp_record = ls_exp_resolved_delim ).
+    mo_ref_assert_util->assert_ref_table_contains( irt_act_table = lrt_resolved_table is_exp_record = ls_exp_resolved_delim ).
+    mo_ref_assert_util->assert_ref_table_lines( irt_act_table = lrt_resolved_table iv_exp_lines = me->mv_lines_before_ops + 1 ).
 
   ENDMETHOD.
 
-    METHOD ins_nogaps_overriden.
+  METHOD ins_nogaps_overriden.
 
-      DATA: ls_insert_date        TYPE me->ts_pernr_dates,
-            lo_collision_result   TYPE REF TO zif_hr_modify_colision_rslts,
-            lrt_overriden_records TYPE REF TO me->tt_pernr_dates,
-            lrt_resolved_table    TYPE REF TO me->tt_pernr_dates.
+    DATA: ls_insert_date        TYPE me->ts_pernr_dates,
+          lo_collision_result   TYPE REF TO zif_hr_modify_colision_rslts,
+          lrt_overriden_records TYPE REF TO me->tt_pernr_dates,
+          lrt_resolved_table    TYPE REF TO me->tt_pernr_dates.
 
-      ls_insert_date = VALUE #( pernr = '00000001' begda = '20150101' endda = '20151231' nonkey = 'Z' ).
+    ls_insert_date = VALUE #( pernr = '00000001' begda = '20150101' endda = '20151231' nonkey = 'Z' ).
 
-      lo_collision_result =  mo_simulator->check_collision_insert( is_record =  ls_insert_date ).
+    lo_collision_result =  mo_simulator->check_collision_insert( is_record =  ls_insert_date ).
 
-      me->verify_modify_collision_types( io_collision_results = lo_collision_result
-                                         delim = ' ' override = 'X' postpond = ' ' ).
+    me->verify_modify_collision_types( io_collision_results = lo_collision_result
+                                       delim = ' ' override = 'X' postpond = ' ' ).
 
-      lrt_overriden_records ?= lo_collision_result->get_overriden_records(  ).
+    lrt_overriden_records ?= lo_collision_result->get_overriden_records(  ).
 
-      me->assert_ref_table_contains( irt_act_table = lrt_overriden_records is_exp_record = ls_insert_date ).
+    mo_ref_assert_util->assert_ref_table_contains( irt_act_table = lrt_overriden_records is_exp_record = ls_insert_date ).
+    mo_ref_assert_util->assert_ref_table_lines( irt_act_table = lrt_overriden_records iv_exp_lines = 1 ).
 
-      mo_simulator->insert_record( is_record = ls_insert_date ).
-      lrt_resolved_table ?= mo_simulator->get_resolved_table( ).
+    mo_simulator->insert_record( is_record = ls_insert_date ).
+    lrt_resolved_table ?= mo_simulator->get_resolved_table( ).
 
-      cl_abap_unit_assert=>assert_bound( act = lrt_resolved_table ).
+    cl_abap_unit_assert=>assert_bound( act = lrt_resolved_table ).
 
-      me->assert_ref_table_contains( irt_act_table = lrt_resolved_table is_exp_record = ls_insert_date ).
+    mo_ref_assert_util->assert_ref_table_contains( irt_act_table = lrt_resolved_table is_exp_record = ls_insert_date ).
+    mo_ref_assert_util->assert_ref_table_lines( irt_act_table = lrt_resolved_table iv_exp_lines = me->mv_lines_before_ops ).
 
-    ENDMETHOD.
+  ENDMETHOD.
 
-    METHOD ins_nogaps_diff_keyfield.
+  METHOD ins_nogaps_diff_keyfield.
 
-      DATA: ls_insert_date      TYPE me->ts_pernr_dates,
-            lo_collision_result TYPE REF TO zif_hr_modify_colision_rslts,
-            lrt_resolved_table  TYPE REF TO data.
+    DATA: ls_insert_date      TYPE me->ts_pernr_dates,
+          lo_collision_result TYPE REF TO zif_hr_modify_colision_rslts,
+          lrt_resolved_table  TYPE REF TO data.
 
-      FIELD-SYMBOLS: <lt_resolved_table> TYPE me->tt_pernr_dates.
+    FIELD-SYMBOLS: <lt_resolved_table> TYPE me->tt_pernr_dates.
 
-      ls_insert_date = VALUE #( pernr = '0000003' begda = '20150101' endda = '20151231' nonkey = 'C' ).
+    ls_insert_date = VALUE #( pernr = '0000003' begda = '20150101' endda = '20151231' nonkey = 'C' ).
 
-      lo_collision_result =  mo_simulator->check_collision_insert( is_record =  ls_insert_date ).
+    lo_collision_result =  mo_simulator->check_collision_insert( is_record =  ls_insert_date ).
 
-      me->verify_modify_collision_types( io_collision_results = lo_collision_result
-                                         delim = ' ' override = ' ' postpond = ' ' ).
+    me->verify_modify_collision_types( io_collision_results = lo_collision_result
+                                       delim = ' ' override = ' ' postpond = ' ' ).
 
-      mo_simulator->insert_record( is_record = ls_insert_date ).
-      lrt_resolved_table = mo_simulator->get_resolved_table( ).
+    mo_simulator->insert_record( is_record = ls_insert_date ).
+    lrt_resolved_table = mo_simulator->get_resolved_table( ).
 
-      cl_abap_unit_assert=>assert_bound( act = lrt_resolved_table ).
+    cl_abap_unit_assert=>assert_bound( act = lrt_resolved_table ).
 
-      ASSIGN lrt_resolved_table->* TO <lt_resolved_table>.
+    mo_ref_assert_util->assert_ref_table_lines( irt_act_table = lrt_resolved_table iv_exp_lines = me->mv_lines_before_ops + 1 ).
 
-      cl_abap_unit_assert=>assert_equals(
-          msg = 'Unexpected number of lines'
-          exp = mv_lines_before_ops + 1
-          act = lines( <lt_resolved_table> )
-       ).
+  ENDMETHOD.
+
+  METHOD ins_nogaps_postpond.
+
+    DATA: ls_insert_date           TYPE me->ts_pernr_dates,
+          ls_exp_delim             TYPE me->ts_pernr_dates,
+          ls_exp_resolved_delim    TYPE me->ts_pernr_dates,
+          ls_exp_postpond          TYPE me->ts_pernr_dates,
+          ls_exp_resolved_postpond TYPE me->ts_pernr_dates,
+          lo_collision_result      TYPE REF TO zif_hr_modify_colision_rslts,
+          lrt_resolved_table       TYPE REF TO data.
+
+    ls_insert_date = VALUE #( pernr = '0000001' begda = '20161230' endda = '20170102' nonkey = 'L' ).
+    ls_exp_delim = VALUE #( pernr = '0000001' begda = '20160101' endda = '20161231' nonkey = 'B' ).
+    ls_exp_resolved_delim = VALUE #( pernr = '0000001' begda = '20160101' endda = '20161229' nonkey = 'B' ).
+    ls_exp_postpond = VALUE #( pernr = '0000001' begda = '20170101' endda = '99991231' nonkey = 'A' ).
+    ls_exp_resolved_postpond = VALUE #( pernr = '0000001' begda = '20170103' endda = '99991231' nonkey = 'A' ).
+
+    lo_collision_result =  mo_simulator->check_collision_insert( is_record =  ls_insert_date ).
+
+    me->verify_modify_collision_types( io_collision_results = lo_collision_result
+                                       delim = 'X' override = ' ' postpond = 'X' ).
+
+    mo_ref_assert_util->assert_structure_ref_equal( is_exp_record = ls_exp_delim
+                                    irs_act_record = lo_collision_result->get_delimited_record( ) ).
+
+    mo_ref_assert_util->assert_structure_ref_equal( is_exp_record = ls_exp_postpond
+                                    irs_act_record = lo_collision_result->get_postponded_record( ) ).
+
+    mo_simulator->insert_record( is_record = ls_insert_date ).
+    lrt_resolved_table = mo_simulator->get_resolved_table( ).
+
+    cl_abap_unit_assert=>assert_bound( act = lrt_resolved_table ).
+
+    mo_ref_assert_util->assert_ref_table_contains( irt_act_table = lrt_resolved_table is_exp_record = ls_exp_resolved_delim ).
+    mo_ref_assert_util->assert_ref_table_contains( irt_act_table = lrt_resolved_table is_exp_record = ls_exp_resolved_postpond ).
+    mo_ref_assert_util->assert_ref_table_lines( irt_act_table = lrt_resolved_table iv_exp_lines = me->mv_lines_before_ops + 1 ).
+
+  ENDMETHOD.
+
+  METHOD verify_modify_collision_types.
+
+    IF delim = abap_true.
+      cl_abap_unit_assert=>assert_bound( act = io_collision_results->get_delimited_record( ) ).
+    ELSE.
+      cl_abap_unit_assert=>assert_not_bound( act = io_collision_results->get_delimited_record( ) ).
+    ENDIF.
+
+    IF override = abap_true.
+      cl_abap_unit_assert=>assert_bound( act = io_collision_results->get_overriden_records( ) ).
+    ELSE.
+      cl_abap_unit_assert=>assert_not_bound( act = io_collision_results->get_overriden_records( ) ).
+    ENDIF.
+
+    IF postpond = abap_true.
+      cl_abap_unit_assert=>assert_bound( act = io_collision_results->get_postponded_record( ) ).
+    ELSE.
+      cl_abap_unit_assert=>assert_not_bound( act = io_collision_results->get_postponded_record( ) ).
+    ENDIF.
+
+  ENDMETHOD.
 
 
-    ENDMETHOD.
 
-    METHOD ins_nogaps_postpond.
+  METHOD del_nogaps_extended.
 
-      DATA: ls_insert_date           TYPE me->ts_pernr_dates,
-            ls_exp_delim             TYPE me->ts_pernr_dates,
-            ls_exp_resolved_delim    TYPE me->ts_pernr_dates,
-            ls_exp_postpond          TYPE me->ts_pernr_dates,
-            ls_exp_resolved_postpond TYPE me->ts_pernr_dates,
-            lo_collision_result      TYPE REF TO zif_hr_modify_colision_rslts,
-            lrt_resolved_table       TYPE REF TO data.
-
-      ls_insert_date = VALUE #( pernr = '0000001' begda = '20161230' endda = '20170102' nonkey = 'L' ).
-      ls_exp_delim = VALUE #( pernr = '0000001' begda = '20160101' endda = '20161231' nonkey = 'B' ).
-      ls_exp_resolved_delim = VALUE #( pernr = '0000001' begda = '20160101' endda = '20161229' nonkey = 'B' ).
-      ls_exp_postpond = VALUE #( pernr = '0000001' begda = '20170101' endda = '99991231' nonkey = 'A' ).
-      ls_exp_resolved_postpond = VALUE #( pernr = '0000001' begda = '20170103' endda = '99991231' nonkey = 'A' ).
-
-      lo_collision_result =  mo_simulator->check_collision_insert( is_record =  ls_insert_date ).
-
-      me->verify_modify_collision_types( io_collision_results = lo_collision_result
-                                         delim = 'X' override = ' ' postpond = 'X' ).
-
-      me->assert_structure_ref_equal( is_exp_record = ls_exp_delim
-                                      irs_act_record = lo_collision_result->get_delimited_record( ) ).
-
-      me->assert_structure_ref_equal( is_exp_record = ls_exp_postpond
-                                      irs_act_record = lo_collision_result->get_postponded_record( ) ).
-
-      mo_simulator->insert_record( is_record = ls_insert_date ).
-      lrt_resolved_table = mo_simulator->get_resolved_table( ).
-
-      cl_abap_unit_assert=>assert_bound( act = lrt_resolved_table ).
-
-      me->assert_ref_table_contains( irt_act_table = lrt_resolved_table is_exp_record = ls_exp_resolved_delim ).
-      me->assert_ref_table_contains( irt_act_table = lrt_resolved_table is_exp_record = ls_exp_resolved_postpond ).
-
-    ENDMETHOD.
-
-    METHOD verify_modify_collision_types.
-
-      IF delim = abap_true.
-        cl_abap_unit_assert=>assert_bound( act = io_collision_results->get_delimited_record( ) ).
-      ELSE.
-        cl_abap_unit_assert=>assert_not_bound( act = io_collision_results->get_delimited_record( ) ).
-      ENDIF.
-
-      IF override = abap_true.
-        cl_abap_unit_assert=>assert_bound( act = io_collision_results->get_overriden_records( ) ).
-      ELSE.
-        cl_abap_unit_assert=>assert_not_bound( act = io_collision_results->get_overriden_records( ) ).
-      ENDIF.
-
-      IF postpond = abap_true.
-        cl_abap_unit_assert=>assert_bound( act = io_collision_results->get_postponded_record( ) ).
-      ELSE.
-        cl_abap_unit_assert=>assert_not_bound( act = io_collision_results->get_postponded_record( ) ).
-      ENDIF.
-
-    ENDMETHOD.
-
-    METHOD assert_structure_ref_equal.
-
-      FIELD-SYMBOLS: <ls_act_record> TYPE me->ts_pernr_dates.
-
-      ASSIGN irs_act_record->* TO <ls_act_record>.
-
-      cl_abap_unit_assert=>assert_equals( exp = is_exp_record act = <ls_act_record> ).
-
-    ENDMETHOD.
-
-    METHOD assert_ref_table_contains.
-
-      FIELD-SYMBOLS: <lt_act_table> TYPE me->tt_pernr_dates.
-
-      ASSIGN irt_act_table->* TO <lt_act_table>.
-
-      cl_abap_unit_assert=>assert_table_contains( line = is_exp_record table = <lt_act_table> ).
-
-    ENDMETHOD.
+  ENDMETHOD.
 
 ENDCLASS.
