@@ -81,6 +81,7 @@ CLASS ltcl_timconst_simulator DEFINITION FINAL FOR TESTING
       ins_nogaps_postpond FOR TESTING RAISING cx_static_check,
       ins_nogaps_diff_keyfield FOR TESTING RAISING cx_static_check,
       ins_nogaps_all_effects FOR TESTING RAISING cx_static_check,
+      ins_nogaps_detect_gap FOR TESTING RAISING cx_static_check,
       del_nogaps_extended FOR TESTING RAISING cx_static_check.
 ENDCLASS.
 
@@ -114,6 +115,7 @@ CLASS ltcl_timconst_simulator IMPLEMENTATION.
       EXPORTING
         iv_allow_concurent_records = abap_false
         iv_allow_gaps              = abap_false
+        iv_protect_initial_record  = abap_false
     ).
 
     mo_simulator->set_key_fields( lt_key_fields ).
@@ -343,4 +345,37 @@ CLASS ltcl_timconst_simulator IMPLEMENTATION.
     mo_ref_assert_util->assert_ref_table_lines( irt_act_table = lrt_resolved_table iv_exp_lines = mv_lines_before_ops ).
 
   ENDMETHOD.
+
+  METHOD ins_nogaps_detect_gap.
+
+    DATA: ls_insert_record      TYPE me->ts_pernr_dates,
+          lo_exp_exception_check TYPE REF TO zcx_timconst_check,
+          lo_exp_exception_insrt TYPE REF TO zcx_timconst_check.
+
+    ls_insert_record = VALUE #( pernr = '0000001' begda = '20180101' endda = '20190101' nonkey = 'L' ).
+
+    TRY.
+
+        mo_simulator->check_collision_insert( is_record = ls_insert_record ).
+
+      CATCH zcx_timconst_check INTO lo_exp_exception_check.
+
+
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_bound( act = lo_exp_exception_check ).
+
+    TRY.
+
+        mo_simulator->check_collision_insert( is_record = ls_insert_record ).
+
+      CATCH zcx_timconst_check INTO lo_exp_exception_insrt.
+
+
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_bound( act = lo_exp_exception_insrt ).
+
+  ENDMETHOD.
+
 ENDCLASS.
