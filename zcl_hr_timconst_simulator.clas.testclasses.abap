@@ -1,18 +1,18 @@
 *"* use this source file for your ABAP unit test classes
 CLASS lcl_assert_ref_utilities DEFINITION.
   PUBLIC SECTION.
-  METHODS: assert_structure_ref_equal
-    IMPORTING irs_act_record TYPE REF TO data
-              is_exp_record  TYPE any
-    RAISING   cx_static_check,
-    assert_ref_table_contains
-      IMPORTING irt_act_table TYPE REF TO data
-                is_exp_record TYPE any
+    METHODS: assert_structure_ref_equal
+      IMPORTING irs_act_record TYPE REF TO data
+                is_exp_record  TYPE any
       RAISING   cx_static_check,
-    assert_ref_table_lines
-      IMPORTING irt_act_table TYPE REF TO data
-                iv_exp_lines  TYPE i
-      RAISING   cx_static_check.
+      assert_ref_table_contains
+        IMPORTING irt_act_table TYPE REF TO data
+                  is_exp_record TYPE any
+        RAISING   cx_static_check,
+      assert_ref_table_lines
+        IMPORTING irt_act_table TYPE REF TO data
+                  iv_exp_lines  TYPE i
+        RAISING   cx_static_check.
 ENDCLASS.
 
 CLASS lcl_assert_ref_utilities IMPLEMENTATION.
@@ -28,7 +28,7 @@ CLASS lcl_assert_ref_utilities IMPLEMENTATION.
 
   METHOD assert_ref_table_contains.
 
-    FIELD-SYMBOLS: <lt_act_table> TYPE any TABLE.
+    FIELD-SYMBOLS: <lt_act_table> TYPE ANY TABLE.
 
     ASSIGN irt_act_table->* TO <lt_act_table>.
 
@@ -38,7 +38,7 @@ CLASS lcl_assert_ref_utilities IMPLEMENTATION.
 
   METHOD assert_ref_table_lines.
 
-    FIELD-SYMBOLS: <lt_act_table> TYPE any table.
+    FIELD-SYMBOLS: <lt_act_table> TYPE ANY TABLE.
 
     ASSIGN irt_act_table->* TO <lt_act_table>.
 
@@ -268,6 +268,30 @@ CLASS ltcl_timconst_simulator IMPLEMENTATION.
 
 
   METHOD del_nogaps_extended.
+
+    DATA: ls_delete_record             TYPE me->ts_pernr_dates,
+          ls_exp_extnd_record          TYPE me->ts_pernr_dates,
+          ls_exp_resolved_extnd_record TYPE me->ts_pernr_dates,
+          lrt_resolved_table           TYPE REF TO me->tt_pernr_dates,
+          lo_collision_result          TYPE REF TO zif_hr_delete_colision_rslts.
+
+    ls_delete_record = VALUE #( pernr = '0000001' begda = '20160101' endda = '20161231' nonkey = 'B' ).
+    ls_exp_extnd_record = VALUE #( pernr = '0000001' begda = '20150101' endda = '20151231' nonkey = 'C' ).
+    ls_exp_resolved_extnd_record = VALUE #( pernr = '0000001' begda = '20150101' endda = '20161231' nonkey = 'C' ).
+    lo_collision_result = mo_simulator->check_collision_delete( is_record = ls_delete_record ).
+
+    cl_abap_unit_assert=>assert_bound( act = lo_collision_result ).
+    cl_abap_unit_assert=>assert_bound( act = lo_collision_result->get_extended_record( ) ).
+    mo_ref_assert_util->assert_structure_ref_equal( irs_act_record = lo_collision_result->get_extended_record( )
+                                                    is_exp_record = ls_exp_extnd_record ).
+
+    mo_simulator->delete_record( is_record = ls_delete_record ).
+    lrt_resolved_table ?= mo_simulator->get_resolved_table(  ).
+
+    mo_ref_assert_util->assert_ref_table_contains( irt_act_table = lrt_resolved_table
+                                                   is_exp_record = ls_exp_resolved_extnd_record ).
+
+    mo_ref_assert_util->assert_ref_table_lines( irt_act_table = lrt_resolved_table iv_exp_lines = mv_lines_before_ops - 1 ).
 
   ENDMETHOD.
 
