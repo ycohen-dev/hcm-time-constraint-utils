@@ -133,8 +133,6 @@ CLASS ltcl_timconst_simulator IMPLEMENTATION.
           lrs_delimited_record  TYPE REF TO me->ts_pernr_dates,
           lrt_resolved_table    TYPE REF TO me->tt_pernr_dates.
 
-    FIELD-SYMBOLS: <lt_resolved_table> TYPE me->tt_pernr_dates.
-
     ls_insert_record = VALUE #( pernr = '00000001' begda = '20170201' endda = '99991231' nonkey = 'L' ).
     ls_exp_delim = VALUE #( pernr = '00000001' begda = '20170101' endda = '99991231' nonkey = 'A' ).
     ls_exp_resolved_delim = VALUE #( pernr = '00000001' begda = '20170101' endda = '20170131' nonkey = 'A' ).
@@ -192,8 +190,6 @@ CLASS ltcl_timconst_simulator IMPLEMENTATION.
     DATA: ls_insert_record    TYPE me->ts_pernr_dates,
           lo_collision_result TYPE REF TO zif_hr_modify_colision_rslts,
           lrt_resolved_table  TYPE REF TO data.
-
-    FIELD-SYMBOLS: <lt_resolved_table> TYPE me->tt_pernr_dates.
 
     ls_insert_record = VALUE #( pernr = '0000003' begda = '20150101' endda = '20151231' nonkey = 'C' ).
 
